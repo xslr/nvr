@@ -5,3 +5,5 @@ authors = ["subratm"]
 
 [dependencies]
 nickel = "*"
+regex = "*"
+lazy_static = "*"
