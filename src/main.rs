@@ -77,15 +77,40 @@ fn field_kind(s: &str) -> Option<FfmpegStatusField> {
 
 fn parse_bitrate(s: &str) -> u32 {
     let mut mult: u32 = 1;
-    let mut br: u32 = 0;
+    let mut n: u32 = 0;
     for c in s.chars() {
         if 'b' == c { mult = 1; break; }
-        else if 'k' == c { mult = 1000; break; }
-        else if 'm' == c { mult = 1000000; break; }
-        else if c.is_digit(10) { br = br*10 + c.to_digit(10).unwrap(); }
+        else if 'k' == c { mult = 1_000; break; }
+        else if 'm' == c { mult = 1_000_000; break; }
+        else if c.is_digit(10) { n = n*10 + c.to_digit(10).unwrap(); }
     }
 
-    br
+    n
+}
+
+fn parse_size(s: &str) -> u32 {
+    let mut mult: u32 = 1;
+    let mut n: u32 = 0;
+    for c in s.chars() {
+        if 'B' == c || 'b' == c { mult = 1; break; }
+        else if 'k' == c || 'K' == c { mult = 1_000; break; }
+        else if 'm' == c || 'M' == c { mult = 1_000_000; break; }
+        else if 'g' == c || 'G' == c { mult = 1_000_000_000; break; }
+        else if c.is_digit(10) { n = n*10 + c.to_digit(10).unwrap(); }
+    }
+
+    n * mult
+}
+
+fn parse_duration(s: &str) -> u32 {
+    let mut parts = s.split(':');
+
+    // hours
+    60*60*parts.next().unwrap_or("0").parse().unwrap_or(0)
+        // minutes
+        + 60*parts.next().unwrap_or("0").parse().unwrap_or(0)
+        // seconds
+        + parts.next().unwrap_or("0").split('.').next().unwrap().parse().unwrap_or(0)
 }
 
 fn parse_ffmpeg_statusline(line: &str) -> Option<CaptureStatus> {
@@ -99,24 +124,18 @@ fn parse_ffmpeg_statusline(line: &str) -> Option<CaptureStatus> {
     let res: Option<CaptureStatus> = None;
 
     for cap in FFMPEG_STATUS_REGEX.captures_iter(line) {
-        /*
-        println!("{}={}",
-                 match field_kind(&cap[1]) {
-                     Some(FfmpegStatusField::Frame) => "FRAME",
-                     _ => "NONE"
-                 }, &cap[2]);
-         */
-
         match field_kind(&cap[1]) {
             Some(FfmpegStatusField::BitRate) => { status.bitrate = parse_bitrate(&cap[2]); }
-            Some(FfmpegStatusField::Frame) => { status.frames = cap[2].parse().unwrap(); }
-            //Some(FfmpegStatusField::Size) => { status.size = &cap[2].parse().unwrap(); }
-            //Some(FfmpegStatusField::Duration) => { status.bitrate = parse_bitrate(&cap[2]); }
+            Some(FfmpegStatusField::Frame) => { status.frames = cap[2].parse().unwrap_or(0); }
+            Some(FfmpegStatusField::Fps) => { status.fps = cap[2].parse().unwrap_or(0); }
+            Some(FfmpegStatusField::Size) => { status.size = parse_size(&cap[2]); }
+            Some(FfmpegStatusField::Duration) => { status.time = parse_duration(&cap[2]); }
             _ => {}
         };
     }
 
-    println!("br={} frame={}", status.bitrate, status.frames);
+    println!("br={} frame={} fps={} size={} duration={}",
+             status.bitrate, status.frames, status.fps, status.size, status.time);
 
     res
 }
